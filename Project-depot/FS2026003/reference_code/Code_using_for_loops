@@ -1,0 +1,96 @@
+module compare(
+   input [159:0] i_clause,
+   input [159:0] i_test,
+   output o_vout
+   );
+   wire [159:0] w_temp;
+    
+// CLAUSE MATCHING
+assign w_temp =(~i_clause)|(i_test);
+// FINAL OUTPUT
+assign o_vout = &w_temp;
+
+endmodule
+
+
+module testbench;
+
+   reg [159:0] ref_mem  [0:999];
+   reg [159:0] test_mem [0:99];
+   reg [31:0] Ytest_mem [0:99];
+   reg signed [31:0] weights_mem [0:999];
+   reg [159:0] ref;
+   reg [159:0] test;
+  // reg [31:0] Ytest;
+   integer i,j;
+   wire A;
+   reg signed [31:0] Aprime [0:99];
+   reg signed [63:0] diff;
+   reg signed [63:0] temp [0:99];
+   real Final_Ans;
+   localparam signed [31:0] MAX = 32'sd500001;
+   localparam signed [31:0] MIN = 32'sd14999;
+   localparam signed [31:0] T   = 32'sd5000;
+   localparam signed [31:0] scale = 32'sd100000;
+   reg signed [63:0] Output [0:99];
+   reg signed [63:0] Sum ;
+   compare C(ref,test,A); 
+
+   initial begin
+       ref  = 160'b0;
+       test = 160'b0;
+       Final_Ans = 64'b0;
+       //temp = 64'sd0;
+       Square_Sum = 64'sd0;
+       $readmemb("clauses_1601.mem", ref_mem);
+       $readmemb("Xtest_1601.mem", test_mem);
+       $readmemb("Ytest_1601.mem", Ytest_mem);
+       $readmemb("weights_1601.mem", weights_mem);
+//        $display("test_mem[0]=%b", test_mem[0]);
+//        $display("test_mem[1]=%b", test_mem[1]);
+   
+       for(i = 0; i < 100; i = i + 1) begin
+//          $display("OUTER LOOP ENTER i=%0d", i);
+//          $display("START SAMPLE %0d", i);
+         Aprime[i] = 0;
+         for(j = 0; j < 1000; j = j + 1) begin
+            
+            ref = ref_mem[j];
+            test = test_mem[i];
+            //Ytest = Ytest_mem[i];
+            #1
+              if (A === 1'bX) begin
+             // $display("A became X at sample=%0d clause=%0d", i, j);
+              $finish;
+              end
+           Aprime[i] = Aprime[i] + (A ? weights_mem[j] : 0);
+           //$display("INNER LOOP DONE i=%0d j=%0d", i, j);
+
+       end 
+                     $display("weight[%0d] = %0d", i, weights_mem[i]);
+                     temp[i] = Aprime[i] * (MAX - MIN);
+                     Output[i] = ((temp[i] / T)) + (MIN);
+                     diff = Output[i] - (Ytest_mem[i]);
+                      if(diff<0) begin 
+                         Sum = Sum + (-diff);
+                      end
+                      else begin
+                         Sum = Sum + (diff);
+                      end 
+                     $display("Output=%0d Ytest=%0d diff=%0d",
+        Output[i], Ytest_mem[i], diff);
+//                      $display("Sample %0d: Aprime=%0d Output=%0d",i, Aprime[i], Output[i]);
+//                      $display("END SAMPLE %0d Aprime=%0d", i, Aprime[i]);
+//                      $display("temp[%d] = %0d", i , temp[i]);
+                   //  $display("Output[%d] = %d", i , Output[i]);
+//                      $display("i=%0d,Ytest=%0d",
+//          i,
+//          Ytest_mem[i],
+//          );
+       end 
+                     Final_Ans = (Sum)/(1000000.0);
+                     $display("RMSD = %f",Final_Ans);
+         $finish;
+       end
+
+endmodule
